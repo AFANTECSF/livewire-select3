@@ -137,7 +137,7 @@ The MIT License (MIT). Please see [License File](LICENSE.md) for more informatio
 
 ## ✨ Credits
 
-- [Agustin Martin](https://github.com/yourusername)
+- [Agustin Martin](https://github.com/jekhar)
 - [All Contributors](../../contributors)
 
 ## 🏗️ About
