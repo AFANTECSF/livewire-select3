@@ -1,13 +1,13 @@
 <?php
 
-namespace JekHar\LivewireSelect2\Facades;
+namespace afantecsf\LivewireSelect3\Facades;
 
 use Illuminate\Support\Facades\Facade;
 
-class LivewireSelect2 extends Facade
+class LivewireSelect3 extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return 'livewire-select2';
+        return 'livewire-select3';
     }
 }

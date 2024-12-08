@@ -1,14 +1,14 @@
 <?php
 
-namespace JekHar\LivewireSelect2;
+namespace afantecsf\LivewireSelect3;
 
-class Select2Manager
+class Select3Manager
 {
     protected array $globalConfig = [];
     protected array $customFilters = [];
 
     /**
-     * Set global configuration for all select2 instances
+     * Set global configuration for all select3 instances
      */
     public function configureDefaults(array $config): self
     {

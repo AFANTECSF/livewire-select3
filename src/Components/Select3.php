@@ -1,13 +1,12 @@
 <?php
 
-namespace JekHar\LivewireSelect2\Components;
+namespace afantecsf\LivewireSelect3\Components;
 
 use Livewire\Component;
 use Livewire\Attributes\On;
-use JekHar\LivewireSelect2\Facades\LivewireSelect2;
-use Illuminate\Support\Facades\Http;
+use Livewire\Attributes\Modelable;
 
-class Select2 extends Component
+class Select3 extends Component
 {
     /**
      * Component configuration
@@ -19,12 +18,14 @@ class Select2 extends Component
     public ?string $model = null;                // Model class for dynamic options
     public ?string $apiEndpoint = null;          // API endpoint for remote data
     public array $staticOptions = [];            // Static options array
+    public ?string $filterCallback = null;       // Custom filter callback
+    public array $additionalParams = [];         // Additional parameters for filtering
+    #[Modelable]
     public ?string $selectedValue = null;        // Currently selected value
     public string $displayField = 'name';        // Field to display in options
     public string $valueField = 'id';            // Field to use as value
     public int $minInputLength = 2;              // Min chars before search
     public int $debounce = 300;                  // Debounce delay in ms
-    public array $additionalParams = [];         // Additional parameters for filtering
 
     /**
      * Internal state
@@ -42,21 +43,14 @@ class Select2 extends Component
         ?string $model = null,
         ?string $apiEndpoint = null,
         array $staticOptions = [],
+        ?string $filterCallback = null,
+        array $additionalParams = [],
         ?string $selectedValue = null,
         string $displayField = 'name',
         string $valueField = 'id',
         int $minInputLength = 2,
-        int $debounce = 300,
-        array $additionalParams = []
+        int $debounce = 300
     ) {
-        // Apply global config if available
-        $globalConfig = LivewireSelect2::getConfig();
-        foreach ($globalConfig as $key => $value) {
-            if (!isset($this->$key)) {
-                $this->$key = $value;
-            }
-        }
-
         $this->name = $name;
         $this->id = $id ?: $name;
         $this->placeholder = $placeholder;
@@ -64,6 +58,7 @@ class Select2 extends Component
         $this->model = $model;
         $this->apiEndpoint = $apiEndpoint;
         $this->staticOptions = $staticOptions;
+        $this->filterCallback = $filterCallback;
         $this->selectedValue = $selectedValue;
         $this->displayField = $displayField;
         $this->valueField = $valueField;
@@ -77,27 +72,21 @@ class Select2 extends Component
         }
 
         // If dependent and no parent value, disable
-        if ($dependsOn && !session()->has("select2_parent_{$dependsOn}")) {
+        if ($dependsOn && !session()->has("select3_parent_{$dependsOn}")) {
             $this->isDisabled = true;
         }
     }
 
-    #[On('select2:updated')]
+    #[On('select3:updated')]
     public function handleDependentUpdate($parentId, $value)
     {
         if ($this->dependsOn === $parentId) {
-            session()->put("select2_parent_{$parentId}", $value);
+            session()->put("select3_parent_{$parentId}", $value);
             $this->isDisabled = false;
-            $this->resetState();
+            $this->search = '';
+            $this->options = [];
+            $this->selectedValue = null;
         }
-    }
-
-    protected function resetState()
-    {
-        $this->search = '';
-        $this->options = [];
-        $this->selectedValue = null;
-        $this->isLoading = false;
     }
 
     public function updatedSearch()
@@ -112,7 +101,20 @@ class Select2 extends Component
 
     public function updatedSelectedValue()
     {
-        $this->dispatch('select2:updated', $this->id, $this->selectedValue);
+        $this->dispatch('select3:updated', $this->id, $this->selectedValue);
+        $this->dispatch('select3:value-updated', $this->selectedValue);
+    }
+
+    public function getListeners()
+    {
+        return array_merge(parent::getListeners(), [
+            'select3:value-updated' => 'handleValueUpdate'
+        ]);
+    }
+
+    public function handleValueUpdate($value)
+    {
+        $this->selectedValue = $value;
     }
 
     protected function loadOptions()
@@ -131,9 +133,6 @@ class Select2 extends Component
             } elseif ($this->staticOptions) {
                 $this->filterStaticOptions();
             }
-        } catch (\Exception $e) {
-            $this->options = [];
-            // You might want to log the error here
         } finally {
             $this->isLoading = false;
         }
@@ -147,44 +146,39 @@ class Select2 extends Component
 
         $query = app($this->model)->query();
 
-        // Apply registered filters if specified
-        if (!empty($this->additionalParams['filters'])) {
-            foreach ($this->additionalParams['filters'] as $filterName) {
-                if ($filter = LivewireSelect2::getFilter($filterName)) {
-                    $query = $filter($query);
-                }
-            }
-        }
-
         // Add dependent condition if applicable
-        if ($this->dependsOn && session()->has("select2_parent_{$this->dependsOn}")) {
-            $parentValue = session()->get("select2_parent_{$this->dependsOn}");
+        if ($this->dependsOn && session()->has("select3_parent_{$this->dependsOn}")) {
+            $parentValue = session()->get("select3_parent_{$this->dependsOn}");
             $query->where($this->dependsOn, $parentValue);
         }
 
-        // Apply any additional where conditions from params
-        foreach ($this->additionalParams as $field => $value) {
-            if ($field !== 'filters' && $value !== null) {
-                if (is_array($value)) {
-                    $query->whereIn($field, $value);
-                } else {
-                    $query->where($field, $value);
-                }
-            }
+        // Apply custom filter callback if provided
+        if ($this->filterCallback && method_exists($this->model, $this->filterCallback)) {
+            $query = app($this->model)::{$this->filterCallback}($query, $this->additionalParams);
         }
 
         // Search condition
         if (method_exists($this->model, 'scopeSearch')) {
+            // Use custom search scope if defined
             $query->search($this->search);
         } else {
+            // Default search behavior
             $query->where($this->displayField, 'like', "%{$this->search}%");
         }
 
-        $this->options = $query->limit(10)
-            ->get()
+        // Apply any additional where conditions from params
+        foreach ($this->additionalParams as $field => $value) {
+            if (is_array($value)) {
+                $query->whereIn($field, $value);
+            } else {
+                $query->where($field, $value);
+            }
+        }
+
+        $this->options = $query->limit(10)->get()
             ->map(fn($item) => [
-                'value' => data_get($item, $this->valueField),
-                'text' => data_get($item, $this->displayField)
+                'value' => $item->{$this->valueField},
+                'text' => $item->{$this->displayField}
             ])
             ->toArray();
     }
@@ -200,18 +194,20 @@ class Select2 extends Component
             'limit' => 10
         ], $this->additionalParams);
 
-        if ($this->dependsOn && session()->has("select2_parent_{$this->dependsOn}")) {
-            $params['parent_value'] = session()->get("select2_parent_{$this->dependsOn}");
+        if ($this->dependsOn && session()->has("select3_parent_{$this->dependsOn}")) {
+            $params['parent_value'] = session()->get("select3_parent_{$this->dependsOn}");
         }
 
         try {
             $response = Http::get($this->apiEndpoint, $params);
             if ($response->successful()) {
                 $data = $response->json();
-                $this->options = collect($data)->map(fn($item) => [
-                    'value' => data_get($item, $this->valueField),
-                    'text' => data_get($item, $this->displayField)
-                ])->toArray();
+                $this->options = collect($data)
+                    ->map(fn($item) => [
+                        'value' => $item[$this->valueField],
+                        'text' => $item[$this->displayField]
+                    ])
+                    ->toArray();
             }
         } catch (\Exception $e) {
             $this->options = [];
@@ -227,7 +223,7 @@ class Select2 extends Component
         $this->options = collect($this->staticOptions)
             ->filter(fn($option) =>
             str_contains(
-                strtolower(data_get($option, $this->displayField)),
+                strtolower($option[$this->displayField]),
                 strtolower($this->search)
             )
             )
@@ -237,6 +233,6 @@ class Select2 extends Component
 
     public function render()
     {
-        return view('livewire-select2::select2');
+        return view('livewire-select3::select3');
     }
 }
