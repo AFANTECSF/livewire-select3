@@ -127,10 +127,6 @@ composer test
 
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
-## 🔒 Security
-
-If you discover any security related issues, please email security@example.com instead of using the issue tracker.
-
 ## 📝 License
 
 The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
