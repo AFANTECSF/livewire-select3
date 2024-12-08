@@ -1,9 +1,9 @@
 # 🔍 Laravel Livewire Select2 Component
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/jekhar/livewire-select2.svg?style=flat-square)](https://packagist.org/packages/jekhar/livewire-select2)
-[![Total Downloads](https://img.shields.io/packagist/dt/jekhar/livewire-select2.svg?style=flat-square)](https://packagist.org/packages/jekhar/livewire-select2)
-[![Tests](https://github.com/jekhar/livewire-select2/actions/workflows/run-tests.yml/badge.svg?branch=main)](https://github.com/jekhar/livewire-select2/actions/workflows/run-tests.yml)
-[![License](https://img.shields.io/packagist/l/jekhar/livewire-select2.svg?style=flat-square)](https://packagist.org/packages/jekhar/livewire-select2)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/afantecsf/livewire-select2.svg?style=flat-square)](https://packagist.org/packages/afantecsf/livewire-select2)
+[![Total Downloads](https://img.shields.io/packagist/dt/afantecsf/livewire-select2.svg?style=flat-square)](https://packagist.org/packages/afantecsf/livewire-select2)
+[![Tests](https://github.com/afantecsf/livewire-select2/actions/workflows/run-tests.yml/badge.svg?branch=main)](https://github.com/afantecsf/livewire-select2/actions/workflows/run-tests.yml)
+[![License](https://img.shields.io/packagist/l/afantecsf/livewire-select2.svg?style=flat-square)](https://packagist.org/packages/afantecsf/livewire-select2)
 
 A powerful, flexible Select2-like dropdown component for Laravel Livewire with Bootstrap 5 styling. Features include dynamic searching, dependent selects, API integration, and more.
 
@@ -24,7 +24,7 @@ A powerful, flexible Select2-like dropdown component for Laravel Livewire with B
 You can install the package via composer:
 
 ```bash
-composer require jekhar/livewire-select2
+composer require afantecsf/livewire-select2
 ```
 
 ## 🛠️ Basic Usage
@@ -143,6 +143,6 @@ The MIT License (MIT). Please see [License File](LICENSE.md) for more informatio
 ## 🏗️ About
 
 This package is actively maintained. For support:
-- 🐛 [Report a bug](https://github.com/jekhar/livewire-select2/issues)
-- 💡 [Request a feature](https://github.com/jekhar/livewire-select2/issues)
-- 💬 [Ask a question](https://github.com/jekhar/livewire-select2/discussions)
+- 🐛 [Report a bug](https://github.com/afantecsf/livewire-select2/issues)
+- 💡 [Request a feature](https://github.com/afantecsf/livewire-select2/issues)
+- 💬 [Ask a question](https://github.com/afantecsf/livewire-select2/discussions)
