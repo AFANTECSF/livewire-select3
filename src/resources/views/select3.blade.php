@@ -1,48 +1,21 @@
 <div
-        x-data="{
-        open: false,
-        selectedText: '',
-        init() {
-            // Initialize selected text from current options if exists
-            if (this.$wire.selectedValue) {
-                const option = this.$wire.options.find(opt => opt.value == this.$wire.selectedValue);
-                if (option) {
-                    this.selectedText = option.text;
-                }
-            }
-
-            // Watch for changes in selectedValue
-            this.$watch('$wire.selectedValue', value => {
-                if (value) {
-                    const option = this.$wire.options.find(opt => opt.value == value);
-                    if (option) {
-                        this.selectedText = option.text;
-                    }
-                } else {
-                    this.selectedText = '';
-                }
-            });
-
-            // Watch for changes in options (useful for dependent selects)
-            this.$watch('$wire.options', options => {
-                if (this.$wire.selectedValue) {
-                    const option = options.find(opt => opt.value == this.$wire.selectedValue);
-                    if (option) {
-                        this.selectedText = option.text;
-                    }
-                }
-            });
-        },
-        focusSearch() {
-            if (this.open) {
-                this.$nextTick(() => {
-                    this.$refs.searchInput.focus();
-                });
-            }
-        }
-    }"
+        x-data="select3Alpine()"
         class="position-relative"
+        @keydown="handleKeydown($event)"
 >
+    <style>
+        .select3-dropdown .list-group-item-action {
+            transition: all 0.2s ease-in-out;
+            padding-left: 1rem;
+        }
+        .select3-dropdown .list-group-item-action:hover:not(.keyboard-selected) {
+            background-color: rgba(var(--bs-primary-rgb), 0.1);
+        }
+        .select3-dropdown .keyboard-selected {
+            background-color: rgba(var(--bs-primary-rgb), 0.15) !important;
+        }
+    </style>
+
     <!-- Hidden input for form submission -->
     <input
             type="hidden"
@@ -52,7 +25,7 @@
 
     <!-- Main select button -->
     <div
-            @click="open = !open; focusSearch()"
+            @click="open = !open"
             class="form-control d-flex justify-content-between align-items-center cursor-pointer {{ $isDisabled ? 'disabled' : '' }}"
             :class="{ 'border-primary': open }"
     >
@@ -67,7 +40,8 @@
             x-transition:enter="transition ease-out duration-200"
             x-transition:enter-start="transform opacity-0 scale-95"
             x-transition:enter-end="transform opacity-100 scale-100"
-            class="position-absolute start-0 mt-1 w-100 rounded shadow-sm border bg-body-light z-1055"
+            class="position-absolute start-0 mt-1 w-100 rounded shadow-sm border bg-body-light z-1055 select3-dropdown"
+            :class="{ 'd-none': !open }"
             style="max-height: 300px; overflow-y: auto;"
     >
         <!-- Search input -->
@@ -90,23 +64,24 @@
         </div>
 
         <!-- Options list -->
-        <div wire:loading.remove>
-            @if (empty($options) && strlen($search) >= $minInputLength)
+        <div wire:loading.remove x-ref="optionsList">
+            @if (empty($options))
                 <div class="p-3 text-center text-muted">
-                    No results found
-                </div>
-            @elseif (strlen($search) < $minInputLength && !empty($search))
-                <div class="p-3 text-center text-muted">
-                    Type {{ $minInputLength }} or more characters to search
+                    {{ strlen($search) >= $minInputLength ? __('No results found') : __('Type to search...') }}
                 </div>
             @else
                 <div class="list-group list-group-flush">
-                    @foreach ($options as $option)
+                    @foreach ($options as $index => $option)
                         <button
                                 type="button"
-                                class="list-group-item list-group-item-action {{ $selectedValue == $option['value'] ? 'active' : '' }}"
+                                class="list-group-item list-group-item-action"
+                                :class="{
+                                'active': {{ $selectedValue ?? 'null' }} == '{{ $option['value'] }}',
+                                'keyboard-selected': isHighlighted({{ $index }})
+                            }"
                                 wire:key="option-{{ $option['value'] }}"
-                                @click="$wire.selectedValue = '{{ $option['value'] }}'; selectedText = '{{ $option['text'] }}'; open = false"
+                                @click="$wire.selectedValue = '{{ $option['value'] }}'; selectedText = '{{ $option['text'] }}'; open = false; highlightedIndex = -1;"
+                                @mouseenter="highlightedIndex = {{ $index }}"
                         >
                             {{ $option['text'] }}
                         </button>

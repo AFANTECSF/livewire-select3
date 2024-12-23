@@ -2,8 +2,8 @@
 
 namespace afantecsf\LivewireSelect3;
 
-use Illuminate\Support\ServiceProvider;
 use afantecsf\LivewireSelect3\Components\Select3;
+use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 
 class LivewireSelect3ServiceProvider extends ServiceProvider
@@ -18,6 +18,10 @@ class LivewireSelect3ServiceProvider extends ServiceProvider
         ], 'livewire-select3-views');
 
         $this->loadViewsFrom(__DIR__.'/resources/views', 'livewire-select3');
+
+        $this->publishes([
+            __DIR__.'/resources/assets' => public_path('vendor/livewire-select3'),
+        ], 'livewire-select3-assets');
     }
 
     public function register()
