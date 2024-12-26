@@ -30,7 +30,7 @@ class Select3 extends Component
     public string $valueField = 'id';
     public int $minInputLength = 2;
     public int $debounce = 300;
-    public int $maxResults = 10; // 0 means no limit
+    public int $maxResults = 10;
 
     /**
      * Internal state
@@ -40,6 +40,8 @@ class Select3 extends Component
     public array $options = [];
     public bool $isLoading = false;
     public bool $isDisabled = false;
+    protected mixed $parentValue = null;
+    public string $dependentPlaceholder = '';
 
     public function mount(
         string $name,
@@ -56,7 +58,8 @@ class Select3 extends Component
         ?string $valueField = null,
         int $minInputLength = 2,
         int $debounce = 300,
-        int $maxResults = 10
+        int $maxResults = 10,
+        string $dependentPlaceholder = ''
     ) {
         $this->name = $name;
         $this->id = $id ?: $name;
@@ -73,8 +76,12 @@ class Select3 extends Component
         $this->debounce = $debounce;
         $this->maxResults = $maxResults;
         $this->additionalParams = $additionalParams;
+        $this->dependentPlaceholder = $dependentPlaceholder ?: __('Select parent option');
 
-        // Load initial options
+        if ($this->dependsOn) {
+            $this->isDisabled = true;
+        }
+
         $this->loadInitialOptions();
     }
 
@@ -82,21 +89,49 @@ class Select3 extends Component
     {
         if (! empty($this->staticOptions)) {
             $this->normalizeOptions();
-        } elseif ($this->model || $this->apiEndpoint) {
+        } elseif (! $this->dependsOn && ($this->model || $this->apiEndpoint)) {
             $this->loadOptions(true);
         }
     }
 
-    #[On('select3:updated')]
-    public function handleDependentUpdate($parentId, $value): void
+    public function initializeComponent(): void
     {
-        if ($this->dependsOn === $parentId) {
-            session()->put("select3_parent_{$parentId}", $value);
-            $this->isDisabled = false;
+        if ($this->selectedValue) {
+            $this->dispatch('select3:updated', $this->id, $this->selectedValue);
+        }
+    }
+
+    #[On('select3:updated')]
+    public function handleDependentUpdate(string $id, mixed $value, ?string $name = null): void
+    {
+        // Handle internal dependencies
+        if ($this->dependsOn === $id) {
+            $previousValue = $this->selectedValue; // Store the previous selection
+            $this->parentValue = $value;
+            $this->isDisabled = empty($value);
             $this->search = '';
             $this->options = [];
-            $this->selectedValue = null;
-            $this->loadInitialOptions();
+
+            if (! empty($value)) {
+                // Load options first
+                $this->loadOptions(true);
+
+                // Only clear selection if the previous value doesn't exist in new options
+                if ($previousValue && ! empty($this->options)) {
+                    $valueExists = collect($this->options)->contains('value', $previousValue);
+                    if (! $valueExists) {
+                        $this->selectedValue = null;
+                    } else {
+                        $this->selectedValue = $previousValue;
+                    }
+                } else {
+                    $this->selectedValue = null;
+                }
+            } else {
+                $this->selectedValue = null;
+            }
+
+            $this->dispatch('select3:child-updated', $this->id);
         }
     }
 
@@ -117,13 +152,23 @@ class Select3 extends Component
 
     public function updatedSelectedValue(): void
     {
-        $this->dispatch('select3:updated', $this->id, $this->selectedValue);
-        $this->dispatch('select3:value-updated', $this->selectedValue);
+        $this->dispatch(
+            'select3:updated',
+            id: $this->id,
+            value: $this->selectedValue,
+            name: $this->name
+        );
     }
 
     protected function loadOptions($loadingSelected = false): void
     {
         if ($this->isDisabled) {
+            return;
+        }
+
+        if ($this->dependsOn && $this->parentValue === null) {
+            $this->options = [];
+
             return;
         }
 
@@ -150,26 +195,26 @@ class Select3 extends Component
 
         $query = app($this->model)->query();
 
-        if ($this->dependsOn && session()->has("select3_parent_{$this->dependsOn}")) {
-            $query->where($this->dependsOn, session()->get("select3_parent_{$this->dependsOn}"));
+        if ($this->dependsOn && $this->parentValue !== null) {
+            $query->where($this->dependsOn, $this->parentValue);
         }
 
         if ($this->filterCallback && method_exists($this->model, $this->filterCallback)) {
             $query = app($this->model)::{$this->filterCallback}($query, $this->additionalParams);
         }
 
-        // Only apply search if we're not loading the selected value and there's a search term
-        if (! $loadingSelected && ! empty($this->search)) {
+        // Modified this section to include selected value in search
+        if (! empty($this->search)) {
             if (method_exists($this->model, 'scopeSearch')) {
                 $query->search($this->search);
             } else {
-                $query->where($this->displayField, 'like', "%{$this->search}%");
+                $query->where(function ($q) {
+                    $q->where($this->displayField, 'like', "%{$this->search}%");
+                    if ($this->selectedValue) {
+                        $q->orWhere($this->valueField, $this->selectedValue);
+                    }
+                });
             }
-        }
-
-        // If loading selected value, filter by it
-        if ($loadingSelected && $this->selectedValue) {
-            $query->where($this->valueField, $this->selectedValue);
         }
 
         foreach ($this->additionalParams as $field => $value) {
@@ -186,6 +231,45 @@ class Select3 extends Component
             ->map(fn ($item) => $this->formatOption($item->{$this->valueField}, $item->{$this->displayField}))
             ->toArray();
     }
+    protected function loadFromApi($loadingSelected = false): void
+    {
+        if (! $this->apiEndpoint) {
+            return;
+        }
+
+        $params = $loadingSelected
+            ? ['id' => $this->selectedValue]
+            : array_merge(
+                [
+                    'search' => $this->search,
+                    'limit' => $this->maxResults > 0 ? $this->maxResults : null,
+                ],
+                $this->additionalParams
+            );
+
+        if ($this->dependsOn && $this->parentValue !== null) {
+            $params['parent_value'] = $this->parentValue;
+        }
+
+        try {
+            $response = Http::get($this->apiEndpoint, $params);
+            if ($response->successful()) {
+                $data = $response->json();
+                $this->options = collect($data)
+                    ->map(fn ($item) => $this->formatOption(
+                        $this->getOptionValue($item),
+                        $this->getOptionText($item)
+                    ))
+                    ->filter(fn ($option) => ! is_null($option['value']) && ! is_null($option['text']))
+                    ->when($this->maxResults > 0 && ! $loadingSelected, fn ($collection) => $collection->take($this->maxResults))
+                    ->values()
+                    ->toArray();
+            }
+        } catch (\Exception $e) {
+            $this->options = [];
+        }
+    }
+
     protected function normalizeOptions(): void
     {
         if (empty($this->staticOptions)) {
@@ -225,45 +309,6 @@ class Select3 extends Component
             'value' => $value,
             'text' => $text,
         ];
-    }
-
-    protected function loadFromApi($loadingSelected = false): void
-    {
-        if (! $this->apiEndpoint) {
-            return;
-        }
-
-        $params = $loadingSelected
-            ? ['id' => $this->selectedValue]
-            : array_merge(
-                [
-                    'search' => $this->search,
-                    'limit' => $this->maxResults > 0 ? $this->maxResults : null,
-                ],
-                $this->additionalParams
-            );
-
-        if ($this->dependsOn && session()->has("select3_parent_{$this->dependsOn}")) {
-            $params['parent_value'] = session()->get("select3_parent_{$this->dependsOn}");
-        }
-
-        try {
-            $response = Http::get($this->apiEndpoint, $params);
-            if ($response->successful()) {
-                $data = $response->json();
-                $this->options = collect($data)
-                    ->map(fn ($item) => $this->formatOption(
-                        $this->getOptionValue($item),
-                        $this->getOptionText($item)
-                    ))
-                    ->filter(fn ($option) => ! is_null($option['value']) && ! is_null($option['text']))
-                    ->when($this->maxResults > 0 && ! $loadingSelected, fn ($collection) => $collection->take($this->maxResults))
-                    ->values()
-                    ->toArray();
-            }
-        } catch (\Exception $e) {
-            $this->options = [];
-        }
     }
 
     public function render()

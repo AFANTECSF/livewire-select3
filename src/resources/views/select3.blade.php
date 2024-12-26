@@ -2,8 +2,12 @@
         x-data="select3Alpine()"
         class="position-relative"
         @keydown="handleKeydown($event)"
+        wire:init="initializeComponent"
 >
     <style>
+        .select3-dropdown {
+            z-index: 1060 !important;
+        }
         .select3-dropdown .list-group-item-action {
             transition: all 0.2s ease-in-out;
             padding-left: 1rem;
@@ -20,16 +24,18 @@
     <input
             type="hidden"
             name="{{ $name }}"
-            wire:model.live="selectedValue"
+            x-model="$wire.selectedValue"
     >
 
     <!-- Main select button -->
     <div
-            @click="open = !open"
+            @click="!$wire.isDisabled && (open = !open)"
             class="form-control d-flex justify-content-between align-items-center cursor-pointer {{ $isDisabled ? 'disabled' : '' }}"
             :class="{ 'border-primary': open }"
     >
-        <span x-text="selectedText || '{{ $placeholder }}'" class="text-truncate pe-2"></span>
+        <span x-text="selectedText || '{{ $isDisabled ? $dependentPlaceholder : $placeholder }}'"
+              class="text-truncate pe-2 {{ $isDisabled ? 'text-muted' : '' }}">
+        </span>
         <i class="fa fa-fw fa-angle-down" :class="{ 'fa-rotate-180': open }"></i>
     </div>
 
@@ -50,21 +56,21 @@
                     x-ref="searchInput"
                     type="text"
                     class="form-control form-control-sm"
-                    placeholder="Search..."
+                    placeholder="{{ __('Search...') }}"
                     wire:model.live.debounce.{{ $debounce }}ms="search"
                     @click.stop
             >
         </div>
 
         <!-- Loading state -->
-        <div wire:loading class="p-3 text-center">
+        <div wire:loading.delay wire:target="search, loadOptions" class="p-3 text-center">
             <div class="spinner-border spinner-border-sm" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </div>
 
         <!-- Options list -->
-        <div wire:loading.remove x-ref="optionsList">
+        <div wire:loading.remove wire:target="search, loadOptions" x-ref="optionsList">
             @if (empty($options))
                 <div class="p-3 text-center text-muted">
                     {{ strlen($search) >= $minInputLength ? __('No results found') : __('Type to search...') }}
@@ -76,11 +82,14 @@
                                 type="button"
                                 class="list-group-item list-group-item-action"
                                 :class="{
-                                'active': {{ $selectedValue ?? 'null' }} == '{{ $option['value'] }}',
+                                'active': '{{ $selectedValue }}' == '{{ $option['value'] }}',
                                 'keyboard-selected': isHighlighted({{ $index }})
                             }"
                                 wire:key="option-{{ $option['value'] }}"
-                                @click="$wire.selectedValue = '{{ $option['value'] }}'; selectedText = '{{ $option['text'] }}'; open = false; highlightedIndex = -1;"
+                                @click="selectedText = '{{ $option['text'] }}';
+                                    open = false;
+                                    highlightedIndex = -1;
+                                    $wire.set('selectedValue', '{{ $option['value'] }}');"
                                 @mouseenter="highlightedIndex = {{ $index }}"
                         >
                             {{ $option['text'] }}
@@ -90,4 +99,5 @@
             @endif
         </div>
     </div>
+
 </div>
