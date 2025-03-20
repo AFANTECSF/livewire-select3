@@ -18,6 +18,11 @@
         .select3-dropdown .keyboard-selected {
             background-color: rgba(var(--bs-primary-rgb), 0.15) !important;
         }
+        .select3-custom-option {
+            border-top: 1px dashed #ccc;
+            margin-top: 4px;
+            padding-top: 4px;
+        }
     </style>
 
     <!-- Hidden input for form submission -->
@@ -75,6 +80,22 @@
                 <div class="p-3 text-center text-muted">
                     {{ strlen($search) >= $minInputLength ? __('No results found') : __('Type to search...') }}
                 </div>
+                
+                <!-- Custom option when no results and allowCustomOption is enabled -->
+                @if($allowCustomOption && strlen($search) >= $minInputLength)
+                <div class="select3-custom-option">
+                    <button
+                        type="button"
+                        class="list-group-item list-group-item-action"
+                        :class="{ 'keyboard-selected': isHighlighted(0) }"
+                        wire:key="create-custom-option"
+                        @click="open = false; $wire.createCustomOption()"
+                        @mouseenter="highlightedIndex = 0"
+                    >
+                        <i class="fa fa-plus-circle me-1"></i> {{ $customOptionText }} "{{ $search }}"
+                    </button>
+                </div>
+                @endif
             @else
                 <div class="list-group list-group-flush">
                     @foreach ($options as $index => $option)
@@ -95,6 +116,22 @@
                             {{ $option['text'] }}
                         </button>
                     @endforeach
+                    
+                    <!-- Custom option when results exist and allowCustomOption is enabled -->
+                    @if($allowCustomOption && strlen($search) >= $minInputLength)
+                    <div class="select3-custom-option">
+                        <button
+                            type="button"
+                            class="list-group-item list-group-item-action"
+                            :class="{ 'keyboard-selected': isHighlighted({{ count($options) }}) }"
+                            wire:key="create-custom-option"
+                            @click="open = false; $wire.createCustomOption()"
+                            @mouseenter="highlightedIndex = {{ count($options) }}"
+                        >
+                            <i class="fa fa-plus-circle me-1"></i> {{ $customOptionText }} "{{ $search }}"
+                        </button>
+                    </div>
+                    @endif
                 </div>
             @endif
         </div>
