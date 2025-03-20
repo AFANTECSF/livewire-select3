@@ -63,6 +63,7 @@
                     class="form-control form-control-sm"
                     placeholder="{{ __('Search...') }}"
                     wire:model.live.debounce.{{ $debounce }}ms="search"
+                    @keydown.enter.prevent="if($wire.allowCustomOption && $wire.search && !$wire.options.length) { $wire.createCustomOption(); open = false; }"
                     @click.stop
             >
         </div>

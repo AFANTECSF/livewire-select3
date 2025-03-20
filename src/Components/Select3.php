@@ -130,19 +130,16 @@ class Select3 extends Component
     #[On('select3:updated')]
     public function handleDependentUpdate(string $id, mixed $value, ?string $name = null): void
     {
-        // Handle internal dependencies
         if ($this->dependsOn === $id) {
-            $previousValue = $this->selectedValue; // Store the previous selection
+            $previousValue = $this->selectedValue;
             $this->parentValue = $value;
             $this->isDisabled = empty($value);
             $this->search = '';
             $this->options = [];
 
             if (! empty($value)) {
-                // Load options first
                 $this->loadOptions(true);
 
-                // Only clear selection if the previous value doesn't exist in new options
                 if ($previousValue && ! empty($this->options)) {
                     $valueExists = collect($this->options)->contains('value', $previousValue);
                     if (! $valueExists) {
@@ -162,8 +159,10 @@ class Select3 extends Component
     }
 
     #[On('select3:reset')]
-    public function handleReset(string $id): void
+    public function handleReset($data): void
     {
+        $id = is_array($data) ? $data['id'] : $data;
+        
         if ($this->id === $id) {
             $this->selectedValue = null;
             $this->search = '';
