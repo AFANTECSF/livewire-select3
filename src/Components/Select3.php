@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Http;
 use Livewire\Attributes\Modelable;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class Select3 extends Component
 {
@@ -204,18 +206,55 @@ class Select3 extends Component
         }
 
         // Modified this section to include selected value in search
+        // Modified this section to include selected value in search
         if (! empty($this->search)) {
             if (method_exists($this->model, 'scopeSearch')) {
                 $query->search($this->search);
             } else {
+                // $query->where(function ($q) {
+                //     $q->where($this->displayField, 'like', "%{$this->search}%");
+                //     if ($this->selectedValue) {
+                //         $q->orWhere($this->valueField, $this->selectedValue);
+                //     }
+                // });
+
                 $query->where(function ($q) {
-                    $q->where($this->displayField, 'like', "%{$this->search}%");
-                    if ($this->selectedValue) {
-                        $q->orWhere($this->valueField, $this->selectedValue);
+                    // 1. First try searching database columns
+                    if ($this->model && is_object(app($this->model)) && Schema::hasColumn(app($this->model)->getTable(), $this->displayField)) {
+                        $q->where($this->displayField, 'like', "%{$this->search}%");
                     }
+
+                    // 2. Check if it's an accessor
+                    $accessor = 'get' . Str::studly($this->displayField) . 'Attribute';
+                    if (method_exists($this->model, $accessor)) {
+                        // Get all records and filter locally (warning: performance impact)
+                        $matchingIds = $this->model::all()
+                            ->filter(function ($item) {
+                                return str_contains(
+                                    strtolower($item->{$this->displayField}), 
+                                    strtolower($this->search)
+                                );
+                            })
+                            ->pluck('id');
+
+                        if ($matchingIds->isNotEmpty()) {
+                            $q->orWhereIn('id', $matchingIds);
+                        }
+                    }
+                    if ($this->selectedValue) {
+                                 $q->orWhere($this->valueField, $this->selectedValue);
+                             }
                 });
             }
-        }
+
+            foreach ($this->additionalParams as $field => $value) {
+                if (is_array($value)) {
+                    $query->whereIn($field, $value);
+                } else {
+                    $query->where($field, $value);
+                }
+            }
+}
 
         foreach ($this->additionalParams as $field => $value) {
             if (is_array($value)) {
