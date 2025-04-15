@@ -33,6 +33,12 @@ class Select3 extends Component
     public int $minInputLength = 2;
     public int $debounce = 300;
     public int $maxResults = 10;
+    
+    /**
+     * Custom option feature
+     */
+    public bool $allowCustomOption = false;
+    public string $customOptionText = 'Create custom item:';
 
     /**
      * Internal state
@@ -61,7 +67,9 @@ class Select3 extends Component
         int $minInputLength = 2,
         int $debounce = 300,
         int $maxResults = 10,
-        string $dependentPlaceholder = ''
+        string $dependentPlaceholder = '',
+        bool $allowCustomOption = false,
+        string $customOptionText = 'Create custom item:'
     ) {
         $this->name = $name;
         $this->id = $id ?: $name;
@@ -79,6 +87,8 @@ class Select3 extends Component
         $this->maxResults = $maxResults;
         $this->additionalParams = $additionalParams;
         $this->dependentPlaceholder = $dependentPlaceholder ?: __('Select parent option');
+        $this->allowCustomOption = $allowCustomOption;
+        $this->customOptionText = $customOptionText;
 
         if ($this->dependsOn) {
             $this->isDisabled = true;
@@ -96,6 +106,22 @@ class Select3 extends Component
         }
     }
 
+    public function createCustomOption()
+    {
+        if (empty($this->search)) {
+            return;
+        }
+        
+        $this->dispatch('custom-option-selected', [
+            'id' => $this->id,
+            'name' => $this->name,
+            'value' => $this->search
+        ]);
+        
+        $this->search = '';
+        $this->options = [];
+    }
+
     public function initializeComponent(): void
     {
         if ($this->selectedValue) {
@@ -106,19 +132,16 @@ class Select3 extends Component
     #[On('select3:updated')]
     public function handleDependentUpdate(string $id, mixed $value, ?string $name = null): void
     {
-        // Handle internal dependencies
         if ($this->dependsOn === $id) {
-            $previousValue = $this->selectedValue; // Store the previous selection
+            $previousValue = $this->selectedValue;
             $this->parentValue = $value;
             $this->isDisabled = empty($value);
             $this->search = '';
             $this->options = [];
 
             if (! empty($value)) {
-                // Load options first
                 $this->loadOptions(true);
 
-                // Only clear selection if the previous value doesn't exist in new options
                 if ($previousValue && ! empty($this->options)) {
                     $valueExists = collect($this->options)->contains('value', $previousValue);
                     if (! $valueExists) {
@@ -134,6 +157,19 @@ class Select3 extends Component
             }
 
             $this->dispatch('select3:child-updated', $this->id);
+        }
+    }
+
+    #[On('select3:reset')]
+    public function handleReset($data): void
+    {
+        $id = is_array($data) ? $data['id'] : $data;
+        
+        if ($this->id === $id) {
+            $this->selectedValue = null;
+            $this->search = '';
+            $this->options = [];
+            $this->loadInitialOptions();
         }
     }
 
@@ -270,6 +306,7 @@ class Select3 extends Component
             ->map(fn ($item) => $this->formatOption($item->{$this->valueField}, $item->{$this->displayField}))
             ->toArray();
     }
+
     protected function loadFromApi($loadingSelected = false): void
     {
         if (! $this->apiEndpoint) {
